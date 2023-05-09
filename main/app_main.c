@@ -68,7 +68,7 @@ static const char *states[] = {
 
 //static void display_task(void *args);
 
-static const char *TAG = "MQTT_TESTER";
+static const char *TAG = "MQTT_TEMP_PRESSURE";
 static char buff[64];
 char topic[64];
 char data[64];
