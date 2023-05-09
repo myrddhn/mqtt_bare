@@ -11,7 +11,6 @@
 #include "esp_netif.h"
 
 #include "bmp180.h"
-//#include "ssd1306.h"
 #include "i2cdev.h"
 #include "button.h"
 
@@ -37,9 +36,6 @@
 
 #include "nvs.h"
 #include "nvs_flash.h"
-
-#include "u8g2.h"
-#include "u8g2_esp8266_hal.h"
 
 #define WIFI_SSID					"MagentaWLAN-FTHQ"
 #define WIFI_PASSWORD				"14262453896122832374"
@@ -86,12 +82,10 @@ static char strftime_buf[64];
 static struct tm timeinfo;
 ledc_channel_config_t ledc_channel[LEDC_TEST_CH_NUM];
 ledc_timer_config_t ledc_timer;
-//static ssd1306_platform_i2cConfig_t ssd1306platformconfig;
 
 static float temp;
 static uint32_t pressure;
 
-u8g2_t u8g2;
 uint16_t vss;
 float vss_v;
 
@@ -225,9 +219,8 @@ static void temperature_task(void *args) {
 	bmp180_init_desc(&dev, 0, SDA, SCL);
 	bmp180_init(&dev);
 
-    while (1)
-    {
-        esp_err_t res = bmp180_measure(&dev, &temp, &pressure, BMP180_MODE_HIGH_RESOLUTION);
+    while (1) {
+        esp_err_t res = bmp180_measure(&dev, &temp, &pressure, BMP180_MODE_STANDARD);
         if (res != ESP_OK) {
             printf("Could not measure: %d\n", res);
         } else {
@@ -317,81 +310,6 @@ static void sntp_task(void *arg) {
     }
 }
 
-void display_task(void *args) {
-	char buff[65];
-
-	static u8g2_esp8266_hal_t hal; // = U8G2_ESP8266_HAL_DEFAULT;
-
-	memset(&hal, 0, sizeof(hal));
-
-//	hal.scl = GPIO_NUM_4;
-//	hal.sda = GPIO_NUM_5;
-
-	hal.sda = GPIO_NUM_12;
-	hal.scl = GPIO_NUM_13;
-
-//	hal.lcddev.addr = 0x3c;
-//	hal.lcddev.port = 0;
-//	hal.lcddev.cfg.sda_io_num = hal.sda;
-//	hal.lcddev.cfg.scl_io_num = hal.scl;
-	//hal.lcddev.cfg.clk_stretch_tick = 300;
-
-//	int i2c_master_port = I2C_NUM_0;
-//	i2c_config_t i2c_config = {
-//		.mode = I2C_MODE_MASTER,
-//		.sda_io_num = hal.sda,
-//		.scl_io_num = hal.scl,
-//		.sda_pullup_en = GPIO_PULLUP_ENABLE,
-//		.scl_pullup_en = GPIO_PULLUP_ENABLE,
-//		.clk_stretch_tick = 300
-//	};
-//
-	u8g2_esp8266_hal_init(hal);
-	u8g2_Setup_sh1106_i2c_128x64_noname_f(&u8g2, U8G2_R0, u8g2_esp8266_i2c_byte_cb, u8g2_esp8266_gpio_and_delay_cb);
-
-	u8g2_InitDisplay(&u8g2);
-	u8g2_SetPowerSave(&u8g2, 0);
-	u8g2_SetI2CAddress(&u8g2, 0x3c);
-
-	while (1) {
-		//I2C_DEV_TAKE_MUTEX(&(hal.lcddev));
-//		i2c_dev_take_mutex(&hal.lcddev);
-		u8g2_ClearBuffer(&u8g2);
-
-		snprintf(buff, 64, "VSS=%.4fV", vss_v);
-		u8g2_SetFont(&u8g2, u8g2_font_ncenB14_tr);
-		u8g2_DrawStr(&u8g2, 2, 15, buff);
-
-		u8g2_SetFont(&u8g2, u8g_font_6x12);
-		strftime(strftime_buf, sizeof(strftime_buf), "%Y-%m-%d", &timeinfo);
-		u8g2_DrawStr(&u8g2, 35, 35, strftime_buf);
-
-		strftime(strftime_buf, sizeof(strftime_buf), "%X", &timeinfo);
-		u8g2_DrawStr(&u8g2, 40, 50, strftime_buf);
-
-//		u8g2_SendBuffer(&u8g2);
-		u8g2_UpdateDisplay(&u8g2);
-		//I2C_DEV_GIVE_MUTEX(&(hal.lcddev));
-//		i2c_dev_give_mutex(&hal.lcddev);
-        vTaskDelay(500 / portTICK_RATE_MS);
-        printf("Display task\n");
-    }
-
-//	ssd1306_setFixedFont(ssd1306xled_font6x8);
-
-//	while (1) {
-//		ESP_LOGI(TAG, "LCD Write");
-//		ssd1306_clearScreen();
-//		ssd1306_printFixed(0,  8, "Normal text", STYLE_NORMAL);
-//		ssd1306_printFixed(0, 16, "Bold text", STYLE_BOLD);
-//		ssd1306_printFixed(0, 24, "Italic text", STYLE_ITALIC);
-//		ssd1306_negativeMode();
-//		ssd1306_printFixed(0, 32, "Inverted bold", STYLE_BOLD);
-//		ssd1306_positiveMode();
-//		vTaskDelay(pdMS_TO_TICKS(2500));
-//	}
-}
-
 void initialize_ledc() {
 	ledc_timer.duty_resolution = LEDC_TIMER_13_BIT;
 	ledc_timer.freq_hz = 5000;
@@ -453,29 +371,17 @@ void app_init() {
 	adc_config.clk_div = 8; // ADC sample collection clock = 80MHz/clk_div = 10MHz
 	ESP_ERROR_CHECK(adc_init(&adc_config));
 
-//	ssd1306_128x64_i2c_initEx(GPIO_NUM_4, GPIO_NUM_5, 0x3c);
-//	ssd1306_128x64_i2c_init();
-	//	int i2c_master_port = I2C_NUM_0;
-	//	i2c_config_t i2c_config = {
-	//		.mode = I2C_MODE_MASTER,
-	//		.sda_io_num = hal.sda,
-	//		.scl_io_num = hal.scl,
-	//		.sda_pullup_en = GPIO_PULLUP_ENABLE,
-	//		.scl_pullup_en = GPIO_PULLUP_ENABLE,
-	//		.clk_stretch_tick = 300
-	//	};
-	//
-    int i2c_master_port = I2C_NUM_0;
-    i2c_config_t i2c_config = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = GPIO_NUM_12,
-        .scl_io_num = GPIO_NUM_13,
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .clk_stretch_tick = 300
-    };
-    i2c_driver_install(i2c_master_port, i2c_config.mode);
-    i2c_param_config(i2c_master_port, &i2c_config);
+//    int i2c_master_port = I2C_NUM_0;
+//    i2c_config_t i2c_config = {
+//        .mode = I2C_MODE_MASTER,
+//        .sda_io_num = GPIO_NUM_12,
+//        .scl_io_num = GPIO_NUM_13,
+//        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+//        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+//        .clk_stretch_tick = 300
+//    };
+//    i2c_driver_install(i2c_master_port, i2c_config.mode);
+//    i2c_param_config(i2c_master_port, &i2c_config);
 	i2cdev_init();
     //initialize_ledc();
 
@@ -537,8 +443,6 @@ void app_init() {
 		xTaskCreate(mqtt_task, "MQTT Task", 2048, NULL, 2, NULL);
 	    xTaskCreate(sntp_task, "SNTP Task", 2048, NULL, 5, NULL);
 	    xTaskCreate(temperature_task, "Temperature Pressure Task", 2048, NULL, 3, NULL);
-	    vTaskDelay(500 / portTICK_PERIOD_MS);
-//	    xTaskCreate(display_task, "Display Task", 4096, NULL, 4, NULL);
 
     } else if (bits & WIFI_FAIL_BIT) {
         ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s", WIFI_SSID, WIFI_PASSWORD);
