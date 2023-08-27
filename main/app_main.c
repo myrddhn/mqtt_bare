@@ -9,6 +9,7 @@
 #include "nvs_flash.h"
 #include "esp_event.h"
 #include "esp_netif.h"
+#include "esp_sleep.h"
 
 #include "bmp180.h"
 #include "i2cdev.h"
@@ -47,6 +48,9 @@
 #define GPIO_OUT_1      			GPIO_NUM_2
 #define GPIO_OUT_PINS   			(1ULL << GPIO_OUT_1)
 
+#define GPIO_IN_1					GPIO_NUM_15
+#define GPIO_IN_PINS				(1ULL << GPIO_IN_1)
+
 #define LEDC_HS_TIMER          		LEDC_TIMER_0
 #define LEDC_HS_MODE           		LEDC_HIGH_SPEED_MODE
 #define LEDC_HS_CH0_GPIO       		GPIO_NUM_2
@@ -57,7 +61,7 @@
 #define LEDC_TEST_FADE_TIME			500
 #define LEDC_TEST_CH_NUM       		1
 
-#define INTERVALSECONDS				1
+#define INTERVALSECONDS				5
 
 static const char *states[] = {
     [BUTTON_PRESSED]      = "pressed",
@@ -93,6 +97,7 @@ static button_t button;
 static char buttonname[] = "My Shiny Red Button";
 
 uint8_t mac_address[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+char id[7];
 
 static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
@@ -108,7 +113,7 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
         ESP_LOGI(TAG,"connect to the AP fail");
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-        ESP_LOGI(TAG, "got ip:%s", ip4addr_ntoa(&event->ip_info.ip));
+        ESP_LOGI(TAG, "got IP:%s", ip4addr_ntoa(&event->ip_info.ip));
         s_retry_num = 0;
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     }
@@ -242,6 +247,8 @@ static void temperature_task(void *args) {
 			ESP_LOGI(TAG, "Published temperature and pressure");
         }
 
+        esp_deep_sleep(1000 * 1000 * 60 * 10);
+
         vTaskDelay(pdMS_TO_TICKS(INTERVALSECONDS * 1000));
     }
 }
@@ -348,7 +355,7 @@ void timheartbeattask(TimerHandle_t xTimer) {
 	gpio_set_level(GPIO_OUT_1, 0);
 	vTaskDelay(75 / portTICK_PERIOD_MS);
 
-	gpio_set_level(GPIO_OUT_1, 1);
+	gpio_set_level(GPIO_OUT_1, 0x01);
 }
 
 void buttoncb(button_t *btn, button_state_t state) {
@@ -365,6 +372,13 @@ void app_init() {
     io_conf.pull_down_en = 0;
     io_conf.pull_up_en = 0;
     gpio_config(&io_conf);
+	io_conf.mode = GPIO_MODE_INPUT;
+	io_conf.pin_bit_mask = GPIO_IN_PINS;
+	io_conf.pull_down_en = 1;
+	io_conf.pull_up_en = 0;
+	gpio_config(&io_conf);
+
+	gpio_set_level(GPIO_IN_1, 0x00);
 
 	adc_config_t adc_config;
 	adc_config.mode = ADC_READ_TOUT_MODE;
@@ -435,6 +449,7 @@ void app_init() {
         ESP_LOGI(TAG, "connected to AP SSID:%s password:%s", WIFI_SSID, WIFI_PASSWORD);
     	esp_wifi_get_mac(ESP_IF_WIFI_STA, mac_address);
     	ESP_LOGI(TAG, "MAC: %02x:%02x:%02x:%02x:%02x:%02x", mac_address[0], mac_address[1], mac_address[2], mac_address[3], mac_address[4], mac_address[5]);
+    	snprintf(id, 7, "%02X%02X%02X", mac_address[3], mac_address[4], mac_address[5]);
 
         mqtt_app_start();
 
@@ -470,11 +485,11 @@ void app_main(void) {
     esp_log_level_set("gpio", ESP_LOG_VERBOSE);
     esp_log_level_set("i2c", ESP_LOG_VERBOSE);
 //    esp_log_level_set("u8g2_hal", ESP_LOG_INFO);
-    //esp_log_level_set("MQTT_TESTER", ESP_LOG_INFO);
+    //esp_log_level_set("MQTT_TEMP_PRESSURE", ESP_LOG_INFO);
 
 
     app_init();
     //xTaskCreate(gloop_task, "Gloop Task", 2048, NULL, 6, NULL);
-    timheartbeat = xTimerCreate("Heartbeat", 5000 / portTICK_PERIOD_MS, pdTRUE, (void *)0, timheartbeattask);
+    timheartbeat = xTimerCreate("Heartbeat", 30000 / portTICK_PERIOD_MS, pdTRUE, (void *)0, timheartbeattask);
     xTimerStart(timheartbeat, 0);
 }
